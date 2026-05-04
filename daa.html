@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Electron File Access Capability Test</title>
+</head>
+<body>
+  <h2>Electron Capability Check</h2>
+  <pre id="output"></pre>
+
+  <script>
+    const out = document.getElementById('output');
+
+    function log(msg) {
+      out.textContent += msg + "\n";
+      console.log(msg);
+    }
+
+    // Basic environment checks
+    log("Origin: " + location.origin);
+    log("UserAgent: " + navigator.userAgent);
+
+    log("typeof require: " + typeof require);
+    log("typeof process: " + typeof process);
+    log("Electron present: " + (window.process?.versions?.electron || "no"));
+
+    // Attempt a harmless fetch to a local file path
+    // (we do NOT read or display contents)
+    fetch("file:///C:/Windows/System32/drivers/etc/hosts")
+      .then(res => {
+        log("Fetch to file:// returned status: " + res.status);
+        log("⚠️ If this succeeds, file:// access may be allowed");
+      })
+      .catch(err => {
+        log("Fetch blocked (expected in secure config): " + err);
+      });
+
+    // Try creating a file:// iframe (again, no reading)
+    try {
+      const iframe = document.createElement("iframe");
+      iframe.src = "file:///C:/Windows/System32/drivers/etc/hosts";
+      iframe.onload = () => log("Iframe loaded file:// (potentially risky)");
+      iframe.onerror = () => log("Iframe blocked (expected)");
+      document.body.appendChild(iframe);
+    } catch (e) {
+      log("Iframe test error: " + e);
+    }
+  </script>
+</body>
+</html>
