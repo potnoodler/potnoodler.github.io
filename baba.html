@@ -16,7 +16,6 @@
         // Bridge presence
         console.log("nativeInterface present:", !!window.nativeInterface);
 
-        // Working API calls (these are your strongest proof)
         const platform = window.nativeInterface?.application?.getPlatform?.();
         const target = window.nativeInterface?.application?.getPlatformTarget?.();
         const releaseNotes = window.nativeInterface?.application?.getDesktopReleaseNotes?.();
@@ -29,7 +28,6 @@
         console.log("Window Size:", windowSize);
         console.log("Is Maximized:", isMaximized);
 
-        // Visual proof for screenshots
         document.body.style.background = "#111";
         document.body.style.color = "#0f0";
 
