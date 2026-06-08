@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>node-fetch security crawl test</title>
+  <style>
+    body { font-family: monospace; max-width: 800px; margin: 2rem auto; padding: 0 1rem; background: #f9f9f9; color: #111; }
+    h1 { font-size: 1rem; margin-bottom: 0.25rem; }
+    p.note { font-size: 0.8rem; color: #555; margin-bottom: 2rem; }
+    section { margin-bottom: 2rem; border: 1px solid #ddd; background: #fff; padding: 1rem; border-radius: 4px; }
+    h2 { font-size: 0.85rem; font-weight: bold; margin: 0 0 0.75rem; color: #333; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; }
+    .test { margin-bottom: 0.75rem; font-size: 0.8rem; }
+    .test .label { color: #555; margin-bottom: 0.25rem; }
+    .test img { display: block; width: 1px; height: 1px; }
+    .test a { color: #0055cc; font-size: 0.75rem; }
+    code { background: #f0f0f0; padding: 1px 4px; border-radius: 2px; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+
+<h1>node-fetch security crawl test page</h1>
+<p class="note">
+  Host this page and POST its URL to your crawler. Each section embeds attack vectors as real
+  <code>&lt;img&gt;</code> tags. If your patches are working, none of these images should be
+  fetched/stored. Check your server logs — any successful fetch is a gap.
+</p>
+
+<!-- ============================================================
+     SECTION 1: SCHEME BYPASS
+     These img src values use non-https schemes.
+     Your patch should block anything that isn't https://.
+     ============================================================ -->
+<section>
+  <h2>1. scheme bypass</h2>
+
+  <div class="test">
+    <div class="label">data: URI — 1x1 transparent PNG inline</div>
+    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==" alt="data-uri-test">
+  </div>
+
+  <div class="test">
+    <div class="label">data: URI — SVG (XSS risk even as image)</div>
+    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxzY3JpcHQ+YWxlcnQoMSk8L3NjcmlwdD48L3N2Zz4=" alt="data-svg-test">
+  </div>
+
+  <div class="test">
+    <div class="label">http: downgrade (not https)</div>
+    <img src="http://httpbin.org/image/png" alt="http-downgrade-test">
+  </div>
+
+  <div class="test">
+    <div class="label">protocol-relative URL (crawlers sometimes expand these)</div>
+    <img src="//httpbin.org/image/png" alt="protocol-relative-test">
+  </div>
+
+  <div class="test">
+    <div class="label">file: scheme — local filesystem read attempt</div>
+    <img src="file:///etc/passwd" alt="file-scheme-test">
+  </div>
+
+</section>
+
+<!-- ============================================================
+     SECTION 2: SSRF — PRIVATE / INTERNAL IPS
+     These point at RFC1918, loopback, and cloud-metadata addresses.
+     Your patch should resolve hostnames and block private ranges.
+     ============================================================ -->
+<section>
+  <h2>2. SSRF — private IP ranges</h2>
+
+  <div class="test">
+    <div class="label">loopback — 127.0.0.1</div>
+    <img src="https://127.0.0.1/image.png" alt="loopback-test">
+  </div>
+
+  <div class="test">
+    <div class="label">loopback — localhost hostname</div>
+    <img src="https://localhost/image.png" alt="localhost-test">
+  </div>
+
+  <div class="test">
+    <div class="label">RFC1918 — 10.x.x.x</div>
+    <img src="https://10.0.0.1/image.png" alt="10x-test">
+  </div>
+
+  <div class="test">
+    <div class="label">RFC1918 — 172.16.x.x</div>
+    <img src="https://172.16.0.1/image.png" alt="172x-test">
+  </div>
+
+  <div class="test">
+    <div class="label">RFC1918 — 192.168.x.x</div>
+    <img src="https://192.168.1.1/image.png" alt="192x-test">
+  </div>
+
+  <div class="test">
+    <div class="label">AWS instance metadata endpoint</div>
+    <img src="https://169.254.169.254/latest/meta-data/" alt="aws-meta-test">
+  </div>
+
+  <div class="test">
+    <div class="label">IPv6 loopback — [::1]</div>
+    <img src="https://[::1]/image.png" alt="ipv6-loopback-test">
+  </div>
+
+  <div class="test">
+    <div class="label">0.0.0.0 — wildcard address</div>
+    <img src="https://0.0.0.0/image.png" alt="zero-addr-test">
+  </div>
+
+</section>
+
+<!-- ============================================================
+     SECTION 3: URL OBFUSCATION
+     Alternate encodings of 127.0.0.1. These parse as valid URLs
+     but resolve to loopback. Caught only if you resolve the IP,
+     not just string-match the hostname.
+     ============================================================ -->
+<section>
+  <h2>3. URL obfuscation</h2>
+
+  <div class="test">
+    <div class="label">decimal IP — 2130706433 resolves to 127.0.0.1</div>
+    <img src="https://2130706433/image.png" alt="decimal-ip-test">
+  </div>
+
+  <div class="test">
+    <div class="label">hex IP — 0x7f000001 resolves to 127.0.0.1</div>
+    <img src="https://0x7f000001/image.png" alt="hex-ip-test">
+  </div>
+
+  <div class="test">
+    <div class="label">@ trick — parser sees evil.com, actual host is 127.0.0.1</div>
+    <img src="https://evil.com@127.0.0.1/image.png" alt="at-trick-test">
+  </div>
+
+  <div class="test">
+    <div class="label">credentials embedded in URL</div>
+    <img src="https://user:password@192.168.1.1/image.png" alt="creds-in-url-test">
+  </div>
+
+  <div class="test">
+    <div class="label">URL-encoded dot — 127%2E0%2E0%2E1</div>
+    <img src="https://127%2E0%2E0%2E1/image.png" alt="encoded-dot-test">
+  </div>
+
+</section>
+
+<!-- ============================================================
+     SECTION 4: REDIRECT EXPLOITATION
+     These start at a safe-looking https URL that then redirects
+     to an internal or forbidden target. Your patch should
+     re-validate the Location header URL before following.
+     ============================================================ -->
+<section>
+  <h2>4. redirect exploitation</h2>
+
+  <div class="test">
+    <div class="label">open redirect → http:// downgrade</div>
+    <img src="https://httpbin.org/redirect-to?url=http://httpbin.org/image/png" alt="redirect-http-test">
+  </div>
+
+  <div class="test">
+    <div class="label">open redirect → 127.0.0.1 (SSRF via redirect)</div>
+    <img src="https://httpbin.org/redirect-to?url=https://127.0.0.1/image.png" alt="redirect-ssrf-test">
+  </div>
+
+  <div class="test">
+    <div class="label">open redirect → data: URI</div>
+    <img src="https://httpbin.org/redirect-to?url=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==" alt="redirect-data-test">
+  </div>
+
+  <div class="test">
+    <div class="label">redirect chain exceeding 20 hops (max-redirect)</div>
+    <img src="https://httpbin.org/absolute-redirect/21" alt="max-redirect-test">
+  </div>
+
+</section>
+
+<!-- ============================================================
+     SECTION 5: SIZE / DOS
+     These return very large or infinite bodies.
+     Your patch should abort when the response exceeds your
+     size cap — and the cap must apply to the raw stream,
+     not just res.text() / res.json().
+     ============================================================ -->
+<section>
+  <h2>5. response size / DoS</h2>
+
+  <div class="test">
+    <div class="label">50 MB random bytes</div>
+    <img src="https://httpbin.org/bytes/52428800" alt="50mb-test">
+  </div>
+
+  <div class="test">
+    <div class="label">infinite stream</div>
+    <img src="https://httpbin.org/stream-bytes/999999999" alt="infinite-stream-test">
+  </div>
+
+  <div class="test">
+    <div class="label">no Content-Length header (streaming body)</div>
+    <img src="https://httpbin.org/stream/100" alt="no-content-length-test">
+  </div>
+
+</section>
+
+<!-- ============================================================
+     SECTION 6: TIMEOUT
+     These stall for a long time before responding.
+     Your AbortController timeout should fire first.
+     ============================================================ -->
+<section>
+  <h2>6. timeout / slow response</h2>
+
+  <div class="test">
+    <div class="label">60 second server delay</div>
+    <img src="https://httpbin.org/delay/60" alt="delay-test">
+  </div>
+
+  <div class="test">
+    <div class="label">drip — 1 byte per second for 120 seconds</div>
+    <img src="https://httpbin.org/drip?duration=120&numbytes=120&delay=0" alt="drip-test">
+  </div>
+
+</section>
+
+<!-- ============================================================
+     SECTION 7: CONTENT-TYPE SPOOFING
+     These return a non-image body with an image Content-Type.
+     Your patch should validate magic bytes, not trust the header.
+     ============================================================ -->
+<section>
+  <h2>7. content-type spoofing</h2>
+
+  <div class="test">
+    <div class="label">HTML body served with Content-Type: image/png</div>
+    <img src="https://httpbin.org/response-headers?Content-Type=image%2Fpng" alt="html-as-image-test">
+  </div>
+
+  <div class="test">
+    <div class="label">SVG with script — served as image/svg+xml</div>
+    <img src="https://httpbin.org/response-headers?Content-Type=image%2Fsvg%2Bxml" alt="svg-as-image-test">
+  </div>
+
+  <div class="test">
+    <div class="label">no Content-Type header at all</div>
+    <img src="https://httpbin.org/response-headers?X-Ignore=true" alt="no-content-type-test">
+  </div>
+
+</section>
+
+<!-- ============================================================
+     SECTION 8: SAFE CONTROL — should succeed
+     One real public image. If your crawler blocks this too,
+     something is over-blocking.
+     ============================================================ -->
+<section>
+  <h2>8. control — should be allowed</h2>
+
+  <div class="test">
+    <div class="label">real public PNG (httpbin) — this one should succeed</div>
+    <img src="https://httpbin.org/image/png" alt="control-image" width="50" height="50">
+  </div>
+
+</section>
+
+</body>
+</html>
